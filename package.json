@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "axios": "^0.21.1",
+    "dotenv": "^8.2.0",
     "moment": "^2.29.1",
     "pg": "^8.5.1",
     "pg-promise": "^10.9.5",

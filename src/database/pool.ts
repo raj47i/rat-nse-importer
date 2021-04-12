@@ -1,7 +1,8 @@
 import { Pool } from 'pg';
+import 'dotenv/config';
 
 export default new Pool ({
     max: 10,
-    connectionString: 'postgres://raj@127.0.0.1:5432/nse_data',
+    connectionString: 'postgres://'+process.env.DB_USER+':'+process.env.DB_PASS+'@localhost:5432/'+process.env.DB_NAME,
     idleTimeoutMillis: 30000
 });
