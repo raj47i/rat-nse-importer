@@ -1,22 +1,21 @@
 import moment, {Moment} from 'moment';
 import axios, { AxiosResponse } from 'axios';
-import pgp from 'pg-promise'
 import pool from "../database/pool"
+import db_connection from "../database/pg-promise"
+
 
 import Application from "../application"
 
 
-
+const pgp = require('pg-promise')({
+    capSQL: true
+    });
 
 export default (app:Application) => {
     var bi = new BhavcopyImporter();
     bi.import(moment().subtract(1, "days"), false);
     // bi.import(moment("2021-04-02"), false);
-    // bi.import(moment("2021-01-26"), false);
 }
-
-
-const db = pgp({capSQL: true})
 
 // https://www1.nseindia.com/content/historical/DERIVATIVES/2010/MAR/fo02MAR2010bhav.csv.zip
 
@@ -49,6 +48,7 @@ class BhavcopyImporter{
     }
 
     public import (dy:Moment, fill:boolean) :void{
+        console.log('here')
         this.isTradingHoliday(dy)
             .then((isHoliday) => {
                 if(isHoliday){
@@ -70,16 +70,24 @@ class BhavcopyImporter{
     }
 
     private insertToDatabase(bhavData:Record<string, any>[]) {
-        for( var row of bhavData){
-            console.log(row);
-            break;
-        }
-        console.log(bhavData[1].symbol)
-
-        // return db.helpers.insert(bhavData, ['symbol', 'series', 'date1', 'prev_close', 'open_price', 'high_price', 'low_price', 'last_price', 'close_price', 'avg_price', 'ttl_trd_qnty', 'turnover_lacs', 'no_of_trades', 'deliv_qty', 'deliv_per'], 'public.bhavdata');
-
-        // "INSERT INTO public.bhavdata (symbol, series, date1, prev_close, open_price, high_price, low_price, last_price, close_price, avg_price, ttl_trd_qnty, turnover_lacs, no_of_trades, deliv_qty, deliv_per) VALUES"
-        // '(${symbol}, ${series}, ${date1}, ${prev_close}, ${open_price}, ${high_price}, ${low_price}, ${last_price}, ${close_price}, ${avg_price}, ${ttl_trd_qnty}, ${turnover_lacs}, ${no_of_trades}, ${deliv_qty}, ${deliv_per})' 
+        
+        const db = pgp(db_connection)
+        const cs = new pgp.helpers.ColumnSet(['symbol', 'series', 'date1',
+                                            'prev_close', 'open_price', 'high_price',
+                                            'low_price', 'last_price', 'close_price',
+                                            'avg_price', 'ttl_trd_qnty', 'turnover_lacs',
+                                            'no_of_trades', 'deliv_qty', 'deliv_per'],
+                                            {table: 'bhavdata'}
+                                            );
+        // const query = pgp.helpers.insert(bhavData.slice(0, 5), cs); //to test
+        const query = pgp.helpers.insert(bhavData, cs);
+        db.none(query)
+        .then(() => {
+        console.log("success");
+        })
+        .catch((error:string) => {
+        console.log(error);
+        });
     }
 
     private parseBhavData(res:AxiosResponse) :Record<string, any>[]{
@@ -90,8 +98,14 @@ class BhavcopyImporter{
             keys?.forEach((v:string, i:number) => keys[i]=v.trim())
             var row:string[] = data.shift()?.split(",")!;
             while(row){
-                var rowD: Record<string, any> = new Map();
-                keys.forEach( (k:string, i:number) => rowD.set(k.toLowerCase(), row[i]?.trim()) );
+                var rowD: Record<string, any> = new Object();
+                keys.forEach(
+                  (k: string, i: number) =>
+                    (rowD[k.toLowerCase()] =
+                      row[i]?.trim() == "-" || row[i]?.trim() == ""
+                        ? 0
+                        : row[i]?.trim())
+                );
                 bhavData.push(rowD);
                 row = data.shift()?.split(",")!;
             }
